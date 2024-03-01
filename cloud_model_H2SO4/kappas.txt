@@ -1,0 +1,3 @@
+# hygroscopicity parameter of species which are included in dry diameter
+SULFATE: 0.65
+POM: 0.1
