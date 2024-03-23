@@ -1,7 +1,0 @@
-# TAKEN FROM McNeill, V. Faye, et al. "Aqueous-phase secondary organic aerosol and 
-# organosulfate formation in atmospheric aerosols: a modeling study." Environmental 
-# science & technology 46.15 (2012): 8075-8081.
-# THESE ARE EFFECTIVE HENRYS LAW CONSTANTS WITH UNITS OF M/atm
-# IF THE VALUE IS -1, THEN THE HENRYS LAW COEFFICIENT IS SET IN GAMMA_gas.py
-H2SO4: 1.30E+15 20000
-SO2: 1.23 2900

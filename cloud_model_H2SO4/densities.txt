@@ -1,4 +1,0 @@
-# density of species which are included in dry diameter kg/m^3
-H2O: 1000
-SULFATE: 1800
-POM: 1200

@@ -1,8 +1,0 @@
-# these units need to be in kg/mol
-BISULFATE: 0.09707
-H+: 0.001008
-H2SO4: 0.09808
-OH: 0.01701
-POM: 0.100
-SO2: 0.064
-SULFATE: 0.09606
