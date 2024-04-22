@@ -147,7 +147,7 @@ class LearnedSimulator(nn.Module):
         distance_to_boundaries = torch.cat(
             [distance_to_lower_boundary, distance_to_upper_boundary], dim=1)
         normalized_clipped_distance_to_boundaries = torch.clamp(
-            distance_to_boundaries, -1., 1.)
+            distance_to_boundaries, 0., 1.)
         node_features.append(normalized_clipped_distance_to_boundaries)
 
         # Particle type

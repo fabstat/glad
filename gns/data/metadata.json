@@ -1,0 +1,40 @@
+{
+    "bounds": [
+        [
+            NaN,
+            NaN
+        ],
+        [
+            NaN,
+            NaN
+        ],
+        [
+            0.0,
+            1.0
+        ]
+    ],
+    "sequence_length": 144,
+    "dim": 3,
+    "num_prop": 3,
+    "dt": 1,
+    "vel_mean": [
+        NaN,
+        NaN,
+        0.006993006993006993
+    ],
+    "vel_std": [
+        NaN,
+        NaN,
+        3.538172715759984e-16
+    ],
+    "acc_mean": [
+        NaN,
+        NaN,
+        1.111688988125982e-18
+    ],
+    "acc_std": [
+        NaN,
+        NaN,
+        5.81323394832487e-16
+    ]
+}

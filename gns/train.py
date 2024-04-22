@@ -23,11 +23,11 @@ from absl import app
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 flags.DEFINE_enum(
-    'mode', 'train', ['train', 'valid', 'rollout'],
+    'mode', 'train', ['train', 'valid', 'rollout', 'predict'],
     help='Train model, validation or rollout evaluation.')
 flags.DEFINE_integer('batch_size', 3, help='The batch size.')
 flags.DEFINE_float('noise_std', 6.5e-4, help='The std deviation of the noise.')
-flags.DEFINE_string('data_path', None, help='The dataset directory.')
+flags.DEFINE_string('data_path', 'data/', help='The dataset directory.')
 flags.DEFINE_string('model_path', 'models/',
                     help=('The path for saving checkpoints of the model.'))
 flags.DEFINE_string('output_path', 'rollouts/',
@@ -59,8 +59,6 @@ Stats = collections.namedtuple('Stats', ['mean', 'std'])
 
 INPUT_SEQUENCE_LENGTH = 15  # So we can calculate the last 14 velocities.
 NUM_PARTICLE_TYPES = 1
-KINEMATIC_PARTICLE_ID = 3
-
 
 def rollout(
         simulator: learned_simulator.LearnedSimulator,
@@ -91,21 +89,14 @@ def rollout(
 
     for step in tqdm(range(nsteps), total=nsteps):
         # Get next position with shape (nnodes, dim)
+        
         next_position = simulator.predict_positions(
             current_positions,
             nparticles_per_example=[n_particles_per_example],
             particle_types=particle_types,
             material_property=material_property
         )
-
-        # Update kinematic particles from prescribed trajectory.
-        kinematic_mask = (particle_types ==
-                          KINEMATIC_PARTICLE_ID).clone().detach().to(device)
-        next_position_ground_truth = ground_truth_positions[:, step]
-        kinematic_mask = kinematic_mask.bool(
-        )[:, None].expand(-1, current_positions.shape[-1])
-        next_position = torch.where(
-            kinematic_mask, next_position_ground_truth, next_position)
+            
         predictions.append(next_position)
 
         # Shift `current_positions`, removing the oldest position in the sequence
@@ -130,6 +121,60 @@ def rollout(
     return output_dict, loss
 
 
+def prediction_rollout(
+        simulator: learned_simulator.LearnedSimulator,
+        position: torch.tensor,
+        particle_types: torch.tensor,
+        material_property: torch.tensor,
+        n_particles_per_example: torch.tensor,
+        nsteps: int,
+        device: torch.device):
+    """
+    Rolls out a trajectory by applying the model in sequence.
+
+    Args:
+      simulator: Learned simulator.
+      position: Positions of particles in chemical space (timesteps, nparticles, ndims)
+      particle_types: Particles types with shape (nparticles)
+      material_property: Particle characteristics that do not change over time (nparticles)
+      n_particles_per_example
+      nsteps: Number of steps.
+      device: torch device.
+    """
+
+    initial_positions = position[:, :INPUT_SEQUENCE_LENGTH]
+    current_positions = initial_positions
+    predictions = []
+
+    for step in tqdm(range(nsteps), total=nsteps):
+        # Get next position with shape (nnodes, dim)
+        next_position = simulator.predict_positions(
+            current_positions,
+            nparticles_per_example=[n_particles_per_example],
+            particle_types=particle_types,
+            material_property=material_property
+        )
+        predictions.append(next_position)
+
+        # Shift `current_positions`, removing the oldest position in the sequence
+        # and appending the next position at the end.
+        current_positions = torch.cat(
+            [current_positions[:, 1:], next_position[:, None, :]], dim=1)
+
+    # Predictions with shape (time, nnodes, dim)
+    predictions = torch.stack(predictions)
+    
+
+    output_dict = {
+        'initial_positions': initial_positions.permute(1, 0, 2).cpu().numpy(),
+        'predicted_rollout': predictions.cpu().numpy(),
+        'particle_types': particle_types.cpu().numpy(),
+        'material_property': material_property.cpu().numpy() if material_property is not None else None
+    }
+
+    return output_dict
+
+
 def predict(device: str):
     """Predict rollouts.
 
@@ -143,7 +188,14 @@ def predict(device: str):
         os.makedirs(FLAGS.output_path)
 
     # Use `valid`` set for eval mode if not use `test`
-    split = 'test' if FLAGS.mode == 'rollout' else 'valid'
+    if FLAGS.mode == 'rollout':
+        split = 'test' 
+        INPUT_SEQUENCE_LENGTH = 15
+    elif FLAGS.mode == 'predict':
+        split = 'predict'
+        INPUT_SEQUENCE_LENGTH = 1
+    else:
+        split = 'valid'
 
     # Get dataset
     ds = data_loader.get_data_loader_by_trajectories(
@@ -197,31 +249,50 @@ def predict(device: str):
                     [int(features[2])], dtype=torch.int32).to(device)
 
             # Predict example rollout
-            example_rollout, loss = rollout(simulator,
-                                            positions,
-                                            particle_type,
-                                            material_property,
-                                            n_particles_per_example,
-                                            nsteps,
-                                            device)
+            if FLAGS.mode in ['rollout', 'valid']:
+                example_rollout, loss = rollout(simulator,
+                                                positions,
+                                                particle_type,
+                                                material_property,
+                                                n_particles_per_example,
+                                                nsteps,
+                                                device)
 
-            example_rollout['metadata'] = metadata
-            print("Predicting example {} loss: {}".format(example_i, loss.mean()))
-            eval_loss.append(torch.flatten(loss))
-
-            # Save rollout in testing
-            if FLAGS.mode == 'rollout':
                 example_rollout['metadata'] = metadata
-                example_rollout['loss'] = loss.mean()
-                filename = f'{FLAGS.output_filename}_ex{example_i}.pkl'
+                print("Predicting example {} loss: {}".format(example_i, loss.mean()))
+                eval_loss.append(torch.flatten(loss))
+
+                # Save rollout in testing
+                if FLAGS.mode == 'rollout':
+                    example_rollout['metadata'] = metadata
+                    example_rollout['loss'] = loss.mean()
+                    filename = f'{FLAGS.output_filename}_ex{example_i}.pkl'
+                    filename = os.path.join(FLAGS.output_path, filename)
+                    with open(filename, 'wb') as f:
+                        pickle.dump(example_rollout, f)
+            elif FLAGS.mode == 'predict':
+                prediction = prediction_rollout(simulator,
+                                                positions,
+                                                particle_type,
+                                                material_property,
+                                                n_particles_per_example,
+                                                nsteps,
+                                                device)
+                prediction['metadata'] = metadata
+                filename = f'{FLAGS.output_filename}_set{example_i}.pkl'
                 filename = os.path.join(FLAGS.output_path, filename)
                 with open(filename, 'wb') as f:
-                    pickle.dump(example_rollout, f)
+                    pickle.dump(prediction, f)
 
-    print("Mean loss on rollout prediction: {}".format(
-        torch.mean(torch.cat(eval_loss))))
-    end = time.time()
-    print(f"Total prediction time: {end - start}")
+    if FLAGS.mode in ['rollout', 'valid']:
+        print("Mean loss on rollout prediction: {}".format(
+            torch.mean(torch.cat(eval_loss))))
+        end = time.time()
+        print(f"Total prediction time: {end - start}")
+    elif FLAGS.mode == 'predict':
+        print(f"Done! Wrote files to {FLAGS.output_path}")
+        end = time.time()
+        print(f"Total prediction time: {end - start}")
 
 
 def optimizer_to(optim, device):
@@ -328,7 +399,7 @@ def train(rank, flags, world_size, device):
     try:
         start = time.time()
         loss = 1
-        while loss > 1e-3 and not_reached_nsteps:
+        while loss > 1e-16 and not_reached_nsteps:
             if device == torch.device("cuda"):
                 torch.distributed.barrier()
             else:
@@ -353,9 +424,6 @@ def train(rank, flags, world_size, device):
                 # Sample the noise to add to the inputs to the model during training.
                 sampled_noise = noise_utils.get_random_walk_noise_for_position_sequence(
                     position, noise_std_last_step=flags["noise_std"]).to(device_id)
-                non_kinematic_mask = (
-                    particle_type != KINEMATIC_PARTICLE_ID).clone().detach().to(device_id)
-                sampled_noise *= non_kinematic_mask.view(-1, 1, 1)
 
                 # Get the predictions and target accelerations.
                 if device == torch.device("cuda"):
@@ -381,13 +449,10 @@ def train(rank, flags, world_size, device):
                             device) if n_features == 3 else None
                     )
 
-                # Calculate the loss and mask out loss on kinematic particles
+                # Calculate the loss 
                 loss = (pred_acc - target_acc) ** 2
                 loss = loss.sum(dim=-1)
-                num_non_kinematic = non_kinematic_mask.sum()
-                loss = torch.where(non_kinematic_mask.bool(),
-                                   loss, torch.zeros_like(loss))
-                loss = loss.mean()  # / num_non_kinematic
+                loss = loss.mean()
 
                 # Computes the gradient of loss
                 optimizer.zero_grad()
@@ -423,8 +488,8 @@ def train(rank, flags, world_size, device):
                     break
 
                 step += 1
-            end = time.time()
-            print(f"Total training time: {end - start}")
+        end = time.time()
+        print(f"Total training time: {end - start}")
 
     except KeyboardInterrupt:
         pass
@@ -543,7 +608,7 @@ def main(_):
             world_size = 1
             train(rank, myflags, world_size, device)
 
-    elif FLAGS.mode in ['valid', 'rollout']:
+    elif FLAGS.mode in ['valid', 'rollout', 'predict']:
         # Set device
         world_size = torch.cuda.device_count()
         if FLAGS.cuda_device_number is not None and torch.cuda.is_available():

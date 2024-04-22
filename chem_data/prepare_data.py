@@ -33,7 +33,7 @@ def normalize(X):
     else:
         x_min = X.min(axis=0)
         x_max = X.max(axis=0)
-    return (X - x_min) / (x_max - x_min)
+    return (X - x_min) / (x_max - x_min), x_min, x_max
 
 
 def data_splits(ts_chems, ptypes, mat_props, traincut=0.6, testcut=1.0):
@@ -68,7 +68,7 @@ def data_splits(ts_chems, ptypes, mat_props, traincut=0.6, testcut=1.0):
     if testcut < 1.0:
         splits["val_data"] = [val_X, val_ptype, val_MP]
         
-    return splits  
+    return splits, idxs, train_cutoff, test_cutoff  
 
 def make_metadata_file(path, training_data):
     train_X = training_data[0]
