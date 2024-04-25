@@ -25,7 +25,6 @@ def load_raw_data(path):
             feats[l[0]] = np.loadtxt(file)
     return feats
 
-
 def normalize(X):
     if len(X.shape) > 1:
         x_min = X.min(axis=1).min(axis=0)
@@ -87,8 +86,8 @@ def make_metadata_file(path, training_data):
     vel_std = list(np.where(np.abs(vel_std) <= 1e-22, 1e-22, vel_std))
     acc_std = list(np.where(np.abs(acc_std) <= 1e-22, 1e-22, acc_std))
 
-    stack_min = np.min(np.min(train_X, axis=0), axis=0).round()
-    stack_max = np.max(np.max(train_X, axis=0), axis=0).round()
+    stack_min = np.min(np.min(train_X, axis=0), axis=0).round() 
+    stack_max = np.max(np.max(train_X, axis=0), axis=0).round() 
     
     bounds = [list(t) for t in zip(stack_min, stack_max)]
     

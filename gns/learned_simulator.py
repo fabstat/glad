@@ -89,7 +89,7 @@ class LearnedSimulator(nn.Module):
 
         # A torch tensor list of source and target nodes with shape (2, nedges)
         edge_index = knn_graph(
-            node_features, k=5, batch=batch_ids, loop=add_self_edges)
+            node_features, k=2, batch=batch_ids, loop=add_self_edges)
 
         # The flow direction when using in combination with message passing is
         # "source_to_target"
@@ -146,9 +146,13 @@ class LearnedSimulator(nn.Module):
             boundaries[:, 1][None] - most_recent_position)
         distance_to_boundaries = torch.cat(
             [distance_to_lower_boundary, distance_to_upper_boundary], dim=1)
-        normalized_clipped_distance_to_boundaries = torch.clamp(
-            distance_to_boundaries, 0., 1.)
-        node_features.append(normalized_clipped_distance_to_boundaries)
+        # normalized_clipped_distance_to_lower_boundary = torch.clamp(
+        #     distance_to_lower_boundary, 0., 0.)
+        # node_features.append(normalized_clipped_distance_to_lower_boundary)
+        # normalized_clipped_distance_to_upper_boundary = torch.clamp(
+        #     distance_to_upper_boundary, 0., 0.)
+        # node_features.append(normalized_clipped_distance_to_upper_boundary)
+        node_features.append(distance_to_boundaries)
 
         # Particle type
         if self._nparticle_types > 1:

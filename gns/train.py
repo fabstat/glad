@@ -26,7 +26,7 @@ flags.DEFINE_enum(
     'mode', 'train', ['train', 'valid', 'rollout', 'predict'],
     help='Train model, validation or rollout evaluation.')
 flags.DEFINE_integer('batch_size', 3, help='The batch size.')
-flags.DEFINE_float('noise_std', 6.5e-4, help='The std deviation of the noise.')
+flags.DEFINE_float('noise_std', 0, help='The std deviation of the noise.')
 flags.DEFINE_string('data_path', 'data/', help='The dataset directory.')
 flags.DEFINE_string('model_path', 'models/',
                     help=('The path for saving checkpoints of the model.'))
@@ -57,8 +57,8 @@ FLAGS = flags.FLAGS
 
 Stats = collections.namedtuple('Stats', ['mean', 'std'])
 
-INPUT_SEQUENCE_LENGTH = 15  # So we can calculate the last 14 velocities.
-NUM_PARTICLE_TYPES = 1
+INPUT_SEQUENCE_LENGTH = 2  # So we can calculate the last 14 velocities.
+NUM_PARTICLE_TYPES = 2
 
 def rollout(
         simulator: learned_simulator.LearnedSimulator,
@@ -190,10 +190,10 @@ def predict(device: str):
     # Use `valid`` set for eval mode if not use `test`
     if FLAGS.mode == 'rollout':
         split = 'test' 
-        INPUT_SEQUENCE_LENGTH = 15
+        #INPUT_SEQUENCE_LENGTH = 2
     elif FLAGS.mode == 'predict':
         split = 'predict'
-        INPUT_SEQUENCE_LENGTH = 1
+        #INPUT_SEQUENCE_LENGTH = 2
     else:
         split = 'valid'
 
@@ -450,7 +450,7 @@ def train(rank, flags, world_size, device):
                     )
 
                 # Calculate the loss 
-                loss = (pred_acc - target_acc) ** 2
+                loss = (pred_acc - target_acc)** 2
                 loss = loss.sum(dim=-1)
                 loss = loss.mean()
 
@@ -546,7 +546,7 @@ def _get_simulator(
         # Given that there IS additional node feature (e.g., material_property) except for:
         # (position (dim), velocity (dim*15), particle_type (16)),
         # nnode_in = 49 if metadata['dim'] == 3 else 33
-        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1)
+        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1) +16
         nnode_in = nnode_in + \
             metadata['num_prop'] if n_features == 3 else nnode_in
         nedge_in = metadata['dim'] + 1
@@ -557,9 +557,9 @@ def _get_simulator(
         nnode_in=nnode_in,
         nedge_in=nedge_in,
         latent_dim=128,
-        nmessage_passing_steps=10,
-        nmlp_layers=3,
-        mlp_hidden_dim=128,
+        nmessage_passing_steps=1,
+        nmlp_layers=2,
+        mlp_hidden_dim=256,
         boundaries=np.array(metadata['bounds']),
         normalization_stats=normalization_stats,
         nparticle_types=NUM_PARTICLE_TYPES,

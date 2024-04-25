@@ -13,6 +13,7 @@ flags.DEFINE_string('raw_data_path', 'chem_data/raw_data/', help='The raw datase
 flags.DEFINE_string('preped_data_path', 'gns/data/', help='The path for saving the prepared data for training.')
 flags.DEFINE_string('rollout_data_path', 'gns/output/', help='The rollout dataset directory.')
 flags.DEFINE_string('proc_data_path', 'chem_data/proc_data/', help='The path for saving the prepared data for training.')
+flags.DEFINE_string('share_path', 'chem_data/proc_data/', help='The path for saving shared pre/post data.')
 
 flags.DEFINE_list('material_properties', ['BC', 'OC', 'aero_number'], help='List of material properties.')
 flags.DEFINE_list('particle_chem', ['H2O', 'SO4'], help='List of particle phase chemicals.')
@@ -28,6 +29,7 @@ def main(_):
     myflags["preped_data_path"] = FLAGS.preped_data_path
     myflags["rollout_data_path"] = FLAGS.rollout_data_path
     myflags["proc_data_path"] = FLAGS.proc_data_path
+    myflags["share_path"] = FLAGS.share_path
     myflags["material_properties"] = FLAGS.material_properties
     myflags["particle_chem"] = FLAGS.particle_chem
     myflags["gases"] = FLAGS.gases
@@ -45,13 +47,19 @@ def main(_):
 
         # these make up the dimensions of the gns
         time_changing_features = []
+        ptype = [] # gns algorithm supports different type of particles
         for i, chem in enumerate(myflags["particle_chem"] + myflags["gases"]):
-            # if i < len(myflags["particle_chem"]):
-            time_changing_features += [feats_dict[chem]]
+            if i < len(myflags["particle_chem"]):
+                ptype += [np.array([1]*feats_dict[chem].shape[1])]
+                time_changing_features += [feats_dict[chem]]
+            else:
+                ptype += [np.array([2]*feats_dict[chem].shape[1])]
+                time_changing_features += [np.log(feats_dict[chem])]
             # else:
             #     time_changing_features += [np.log(feats_dict[chem])]
         X = np.stack(time_changing_features, axis=-1)
         X = X[1:,:,:] # data for time step 0 is too different
+        ptype = np.concatenate(ptype)
         
         ##### notes/changes: ##############################
         # put just gas in log scale
@@ -74,11 +82,10 @@ def main(_):
         norm_MP, min_mp, max_mp = normalize(MP)
         
         unnorm = [min_x, max_x, min_mp, max_mp]
-        filename = os.path.join(myflags["proc_data_path"], f'unnorm.pkl')
+        filename = os.path.join(myflags["share_path"], f'unnorm.pkl')
         with open(filename, 'wb') as f:
             pickle.dump(unnorm, f)
         
-        ptype = np.array([1]*norm_X.shape[1]) # gns algorithm supports different type of particles
 
         if FLAGS.action == 'prepare':
             split_dict, idxs, train_cutoff, test_cutoff = data_splits(norm_X, ptype, norm_MP, traincut=0.6, testcut=1.0)
@@ -102,11 +109,11 @@ def main(_):
         # 'particle_types', 'material_property', 'metadata', 'loss'])
         
         
-        filename = os.path.join(myflags["proc_data_path"], f'unnorm.pkl')
+        filename = os.path.join(myflags["share_path"], 'unnorm.pkl')
         with open(filename, 'rb') as f: 
             unnorm = pickle.load(f) 
 
-        i = 0
+        name_i = 0
         for rollout_name in rollout_dict:
             ro = rollout_dict[rollout_name]
             true_x = ro['ground_truth_rollout']*(unnorm[1] - unnorm[0]) + unnorm[0]
@@ -123,16 +130,20 @@ def main(_):
             x_names = myflags["particle_chem"] + myflags["gases"]
             mp_names = myflags["material_properties"]
             for i in range(true_x.shape[-1]):
-                outdata_dict['true_x'][x_names[i]] = true_x[:,:,i]
-                outdata_dict['pred_x'][x_names[i]] = pred_x[:,:,i]
+                if i < len(myflags["particle_chem"]): 
+                    outdata_dict['true_x'][x_names[i]] = true_x[:,:,i]
+                    outdata_dict['pred_x'][x_names[i]] = pred_x[:,:,i]
+                else:
+                    outdata_dict['true_x'][x_names[i]] = np.exp(true_x[:,:,i])
+                    outdata_dict['pred_x'][x_names[i]] = np.exp(pred_x[:,:,i])
             
             for j in range(reshaped_mat_prop.shape[-1]):
                 outdata_dict['mat_prop'][mp_names[j]] = reshaped_mat_prop[:,:,j]
                 
-            filename = os.path.join(myflags["proc_data_path"], f'{rollout_name[:-4]}{i}_dict.pkl')
+            filename = os.path.join(myflags["proc_data_path"], f'{rollout_name[:-4]}{name_i}_dict.pkl')
             with open(filename, 'wb') as f:
                 pickle.dump(outdata_dict, f)
-            i += 1
+            name_i += 1
                 
             
 

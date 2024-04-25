@@ -5,10 +5,11 @@ from glob import glob
 from pathlib import Path
 import os
 
-density_dict = {'SO4': 1770,
+density_dict = {'SO4': 1800,
                 'BC': 1700,
                 'OC': 1000,
-                'H2O': 1000}
+                'H2O': 1000,
+                'POM': 1200}
                     
                     
 def load_rollout_data(path):
@@ -56,5 +57,5 @@ def mean_std_diameter(mass_of_particles):
     return (mean_d, std_d)
 
 def nmae(truth, pred):
-    return np.mean(np.sum(np.abs(truth - pred)/truth, axis=0) / truth.shape[0]) 
+    return np.mean(np.sum(np.abs((truth - pred)/truth), axis=0) / truth.shape[0]) 
     
