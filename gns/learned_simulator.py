@@ -22,6 +22,8 @@ class LearnedSimulator(nn.Module):
             normalization_stats: dict,
             nparticle_types: int,
             particle_type_embedding_size: int,
+            nuniverse_types: int,
+            universe_number_embedding_size: int,
             device="cpu"
     ):
         """Initializes the model.
@@ -41,6 +43,8 @@ class LearnedSimulator(nn.Module):
             fields, matching the dimensionality of the problem.
           nparticle_types: Number of different particle types.
           particle_type_embedding_size: Embedding size for the particle type.
+          nuniverse_types: Number of different universe types.
+          universe_number_embedding_size: Embedding size for the universe number.
           device: Runtime device (cuda or cpu).
 
         """
@@ -48,10 +52,14 @@ class LearnedSimulator(nn.Module):
         self._boundaries = boundaries
         self._normalization_stats = normalization_stats
         self._nparticle_types = nparticle_types
+        self._nuniverse_types = nuniverse_types
 
-        # Particle type embedding has shape (9, 16)
+        # Particle type embedding has shape (2, 16)
         self._particle_type_embedding = nn.Embedding(
             nparticle_types, particle_type_embedding_size)
+        # Universe number embedding has shape (10, 16)
+        self._universe_number_embedding = nn.Embedding(
+            nuniverse_types, universe_number_embedding_size)
 
         # Initialize the EncodeProcessDecode
         self._encode_process_decode = graph_network.EncodeProcessDecode(
@@ -74,7 +82,7 @@ class LearnedSimulator(nn.Module):
             node_features: torch.tensor,
             nparticles_per_example: torch.tensor,
             add_self_edges: bool = True):
-        """Generate graph edges to all particles' 5 NN
+        """Generate graph edges to all particles' 2 NN
 
         Args:
           node_features: Node features with shape (nparticles, dim).
@@ -103,6 +111,7 @@ class LearnedSimulator(nn.Module):
             position_sequence: torch.tensor,
             nparticles_per_example: torch.tensor,
             particle_types: torch.tensor,
+            universe_numbers: torch.tensor,
             material_property: torch.tensor = None):
         """Extracts important features from the position sequence. Returns a tuple
         of node_features (nparticles, total_dim), edge_index (nparticles, nparticles), and
@@ -113,7 +122,8 @@ class LearnedSimulator(nn.Module):
             (nparticles, 15, dim). Includes current + last 14 positions
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
-          particle_types: Particle types with shape (nparticles).
+          particle_types: Particle types with shape (nparticles)
+          universe_numbers: Category variable representing data under same conditions (nparticles)
           material_property: Friction angle normalized by tan() with shape (nparticles)
         """
         nparticles = position_sequence.shape[0]
@@ -131,8 +141,8 @@ class LearnedSimulator(nn.Module):
             velocity_sequence - velocity_stats['mean']) / velocity_stats['std']
         flat_velocity_sequence = normalized_velocity_sequence.view(
             nparticles, -1)
-        # There are 14 previous steps, with dim
-        # node_features shape (nparticles, 15 * dim)
+        # There are (1) previous steps, with dim
+        # node_features shape (nparticles, 2 * dim)
         node_features.append(flat_velocity_sequence)
 
         # Normalized clipped distances to lower and upper boundaries.
@@ -159,6 +169,12 @@ class LearnedSimulator(nn.Module):
             particle_type_embeddings = self._particle_type_embedding(
                 particle_types)
             node_features.append(particle_type_embeddings)
+            
+        # Universe type
+        if self._nuniverse_types > 1:
+            universe_number_embeddings = self._universe_number_embedding(
+                universe_numbers)
+            node_features.append(universe_number_embeddings)
 
         # Material property
         if material_property is not None:
@@ -226,6 +242,7 @@ class LearnedSimulator(nn.Module):
             current_positions: torch.tensor,
             nparticles_per_example: torch.tensor,
             particle_types: torch.tensor,
+            universe_numbers: torch.tensor,
             material_property: torch.tensor = None) -> torch.tensor:
         """Predict position based on acceleration.
 
@@ -233,7 +250,8 @@ class LearnedSimulator(nn.Module):
           current_positions: Current particle positions (nparticles, dim).
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
-          particle_types: Particle types with shape (nparticles).
+          particle_types: Particle types with shape (nparticles)
+          universe_numbers: Category variable representing data under same conditions (nparticles)
           material_property: Friction angle normalized by tan() with shape (nparticles)
 
         Returns:
@@ -241,10 +259,10 @@ class LearnedSimulator(nn.Module):
         """
         if material_property is not None:
             node_features, edge_index, edge_features = self._encoder_preprocessor(
-                current_positions, nparticles_per_example, particle_types, material_property)
+                current_positions, nparticles_per_example, particle_types, universe_numbers, material_property)
         else:
             node_features, edge_index, edge_features = self._encoder_preprocessor(
-                current_positions, nparticles_per_example, particle_types)
+                current_positions, nparticles_per_example, particle_types, universe_numbers)
         predicted_normalized_acceleration = self._encode_process_decode(
             node_features, edge_index, edge_features)
         next_positions = self._decoder_postprocessor(
@@ -258,6 +276,7 @@ class LearnedSimulator(nn.Module):
             position_sequence: torch.tensor,
             nparticles_per_example: torch.tensor,
             particle_types: torch.tensor,
+            universe_numbers: torch.tensor,
             material_property: torch.tensor = None):
         """Produces normalized and predicted acceleration targets.
 
@@ -271,6 +290,7 @@ class LearnedSimulator(nn.Module):
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
           particle_types: Particle types with shape (nparticles).
+          universe_numbers: Category variable representing data under same conditions (nparticles).
           material_property: Particle characteristics that do not change over time (nparticles).
 
         Returns:
@@ -285,10 +305,10 @@ class LearnedSimulator(nn.Module):
         # Perform the forward pass with the noisy position sequence.
         if material_property is not None:
             node_features, edge_index, edge_features = self._encoder_preprocessor(
-                noisy_position_sequence, nparticles_per_example, particle_types, material_property)
+                noisy_position_sequence, nparticles_per_example, particle_types, universe_numbers, material_property)
         else:
             node_features, edge_index, edge_features = self._encoder_preprocessor(
-                noisy_position_sequence, nparticles_per_example, particle_types)
+                noisy_position_sequence, nparticles_per_example, particle_types, universe_numbers)
         predicted_normalized_acceleration = self._encode_process_decode(
             node_features, edge_index, edge_features)
 

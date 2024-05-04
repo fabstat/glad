@@ -16,65 +16,67 @@ import re
 
 #### Set these as appropriate:
 # PartMC-MOSAIC Data:
-raw_data_path = "./chem_data/processed_output_some/"
-topredict_path = "./chem_data/to_predict/"
-rollout_dicts = "./chem_data/proc_data/"
-
-npz_path = "./gns/data/"
-model_path = "./gns/model/"
-rollouts_path = "./gns/output/"
-
-material_properties = ['aero_number', 'BC', 'OC']
-mat_prop_str = "','".join(material_properties)
-particle_chem = ['H2O', 'SO4']
-part_chem_str = "','".join(particle_chem)
-gases = ['H2SO4']
-gases_str = "','".join(gases)
-train_steps = 300
-scenarios = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-total_reps = 0
-
-
-#### For Payton's Data:
-# raw_data_path = "./chem_data/processed_output_so2/"
-# topredict_path = "./chem_data/to_predict"
-# rollout_dicts = "./chem_data/proc_data_payton"
+# raw_data_path = "./chem_data/processed_output_some/"
+# topredict_path = "./chem_data/to_predict/"
+# rollout_dicts = "./chem_data/proc_data/"
 
 # npz_path = "./gns/data/"
 # model_path = "./gns/model/"
 # rollouts_path = "./gns/output/"
 
-# material_properties = ['aero_number', 'POM']
+# material_properties = ['aero_number', 'BC', 'OC']
 # mat_prop_str = "','".join(material_properties)
-# particle_chem = ['H2O', 'H2SO4a', 'HSO4', 'SO4']
+# particle_chem = ['H2O', 'SO4']
 # part_chem_str = "','".join(particle_chem)
-# gases = ['SO2', 'OH', 'H2SO4']
+# gases = ['H2SO4']
 # gases_str = "','".join(gases)
-# train_steps = 3000
+# train_steps = 300
+# scenarios = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+# total_reps = 0
+
+
+#### For Payton's Data:
+raw_data_path = "./chem_data/processed_output_so2/"
+topredict_path = "./chem_data/to_predict/"
+rollout_dicts = "./chem_data/proc_data_payton/"
+
+npz_path = "./gns/data/"
+model_path = "./gns/model/"
+rollouts_path = "./gns/output/"
+
+material_properties = ['aero_number', 'POM']
+mat_prop_str = "','".join(material_properties)
+particle_chem = ['H2O', 'H2SO4a', 'HSO4', 'SO4']
+part_chem_str = "','".join(particle_chem)
+gases = ['SO2', 'OH', 'H2SO4']
+gases_str = "','".join(gases)
+train_steps = 1000
+scenarios = [10]
+total_reps = 0
 ####
 
 total_steps = train_steps
 old_ts = total_steps
-example_number = 0
+example_number = 10
 rollout_number = 0
 
 for dir in os.listdir(raw_data_path):
     if rollout_number < len(scenarios):
-        if dir.startswith(".") or rollout_number not in scenarios:
+        if dir.startswith("."):
             print(f"Skipping {dir}")
             continue
 
         path = raw_data_path + dir
         example_folder = npz_path + "example" + str(example_number) + "/"
-        rollout_folder = rollouts_path + "rollout" + str(rollout_number)
-        dict_folder = rollout_dicts + "ex" + str(rollout_number)
+        rollout_folder = rollouts_path + "rollout" + str(scenarios[rollout_number])
+        dict_folder = rollout_dicts + "ex" + str(scenarios[rollout_number])
         
         os.system(f"mkdir -p {example_folder}")
         os.system(f"mkdir -p {rollout_folder}")
         os.system(f"mkdir -p {dict_folder}")
         
         os.system(f"python -m chem_data.chemgns --action='prepare' --raw_data_path={path}  --preped_data_path={example_folder} " +
-                  f"--material_properties={mat_prop_str} --gases={gases_str} " + 
+                  f"--universe={scenarios[rollout_number]} --material_properties={mat_prop_str} --gases={gases_str} " + 
                   f"--particle_chem={part_chem_str} --proc_data_path={dict_folder} --share_path={rollout_dicts}")
     
         if total_steps == train_steps:
@@ -97,7 +99,7 @@ for dir in os.listdir(raw_data_path):
 reps = total_reps
 while reps > 0:
     example_folder = npz_path + "example" + str(example_number-1) + "/"
-    rollout_folder = rollouts_path + "rollout" + str(rollout_number) + "rep" + str(reps)
+    rollout_folder = rollouts_path + "rollout" + str(scenarios[rollout_number-1]) + "rep" + str(reps)
     dict_folder = rollout_dicts + "rep" + str(reps)
     os.system(f"mkdir -p {rollout_folder}")
     os.system(f"mkdir -p {dict_folder}")

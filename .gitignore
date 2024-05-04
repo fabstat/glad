@@ -1,6 +1,5 @@
 # Data/model files
 *.pkl
-*.txt
 *.pt
 
 # Byte-compiled / optimized / DLL files

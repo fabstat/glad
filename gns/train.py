@@ -26,7 +26,7 @@ flags.DEFINE_enum(
     'mode', 'train', ['train', 'valid', 'rollout', 'predict'],
     help='Train model, validation or rollout evaluation.')
 flags.DEFINE_integer('batch_size', 3, help='The batch size.')
-flags.DEFINE_float('noise_std', 0, help='The std deviation of the noise.')
+flags.DEFINE_float('noise_std', 6.3e-5, help='The std deviation of the noise.')
 flags.DEFINE_string('data_path', 'data/', help='The dataset directory.')
 flags.DEFINE_string('model_path', 'models/',
                     help=('The path for saving checkpoints of the model.'))
@@ -57,13 +57,15 @@ FLAGS = flags.FLAGS
 
 Stats = collections.namedtuple('Stats', ['mean', 'std'])
 
-INPUT_SEQUENCE_LENGTH = 2  # So we can calculate the last 14 velocities.
+INPUT_SEQUENCE_LENGTH = 2  # So we can calculate the last velocity.
 NUM_PARTICLE_TYPES = 2
+NUM_UNIVERSE_TYPES = 1
 
 def rollout(
         simulator: learned_simulator.LearnedSimulator,
         position: torch.tensor,
         particle_types: torch.tensor,
+        universe_numbers: torch.tensor,
         material_property: torch.tensor,
         n_particles_per_example: torch.tensor,
         nsteps: int,
@@ -75,6 +77,7 @@ def rollout(
       simulator: Learned simulator.
       position: Positions of particles in chemical space (timesteps, nparticles, ndims)
       particle_types: Particles types with shape (nparticles)
+      universe_numbers: Category variable representing data under same conditions (nparticles)
       material_property: Particle characteristics that do not change over time (nparticles)
       n_particles_per_example
       nsteps: Number of steps.
@@ -94,6 +97,7 @@ def rollout(
             current_positions,
             nparticles_per_example=[n_particles_per_example],
             particle_types=particle_types,
+            universe_numbers=universe_numbers,
             material_property=material_property
         )
             
@@ -115,6 +119,7 @@ def rollout(
         'predicted_rollout': predictions.cpu().numpy(),
         'ground_truth_rollout': ground_truth_positions.cpu().numpy(),
         'particle_types': particle_types.cpu().numpy(),
+        'universe_numbers': universe_numbers.cpu().numpy(),
         'material_property': material_property.cpu().numpy() if material_property is not None else None
     }
 
@@ -125,6 +130,7 @@ def prediction_rollout(
         simulator: learned_simulator.LearnedSimulator,
         position: torch.tensor,
         particle_types: torch.tensor,
+        universe_numbers: torch.tensor,
         material_property: torch.tensor,
         n_particles_per_example: torch.tensor,
         nsteps: int,
@@ -136,6 +142,7 @@ def prediction_rollout(
       simulator: Learned simulator.
       position: Positions of particles in chemical space (timesteps, nparticles, ndims)
       particle_types: Particles types with shape (nparticles)
+      universe_numbers: Category variable representing data under same conditions (nparticles)
       material_property: Particle characteristics that do not change over time (nparticles)
       n_particles_per_example
       nsteps: Number of steps.
@@ -152,6 +159,7 @@ def prediction_rollout(
             current_positions,
             nparticles_per_example=[n_particles_per_example],
             particle_types=particle_types,
+            universe_numbers=universe_numbers,
             material_property=material_property
         )
         predictions.append(next_position)
@@ -169,6 +177,7 @@ def prediction_rollout(
         'initial_positions': initial_positions.permute(1, 0, 2).cpu().numpy(),
         'predicted_rollout': predictions.cpu().numpy(),
         'particle_types': particle_types.cpu().numpy(),
+        'universe_numbers': universe_numbers.cpu().numpy(),
         'material_property': material_property.cpu().numpy() if material_property is not None else None
     }
 
@@ -190,10 +199,8 @@ def predict(device: str):
     # Use `valid`` set for eval mode if not use `test`
     if FLAGS.mode == 'rollout':
         split = 'test' 
-        #INPUT_SEQUENCE_LENGTH = 2
     elif FLAGS.mode == 'predict':
         split = 'predict'
-        #INPUT_SEQUENCE_LENGTH = 2
     else:
         split = 'valid'
 
@@ -204,9 +211,9 @@ def predict(device: str):
 
     # See if our dataset has material property as feature
     # `ds` has (positions, particle_type, material_property)
-    if n_features == 3:
+    if n_features == 4:
         material_property_as_feature = True
-    elif n_features == 2:  # `ds` only has (positions, particle_type)
+    elif n_features == 3:  # `ds` only has (positions, particle_type)
         material_property_as_feature = False
     else:
         raise NotImplementedError
@@ -239,20 +246,22 @@ def predict(device: str):
                 sequence_length = positions.shape[1]
                 nsteps = sequence_length - INPUT_SEQUENCE_LENGTH
             particle_type = features[1].to(device)
+            universe_number = features[2].to(device)
             if material_property_as_feature:
-                material_property = features[2].to(device)
+                material_property = features[3].to(device)
                 n_particles_per_example = torch.tensor(
-                    [int(features[3])], dtype=torch.int32).to(device)
+                    [int(features[4])], dtype=torch.int32).to(device)
             else:
                 material_property = None
                 n_particles_per_example = torch.tensor(
-                    [int(features[2])], dtype=torch.int32).to(device)
+                    [int(features[3])], dtype=torch.int32).to(device)
 
             # Predict example rollout
             if FLAGS.mode in ['rollout', 'valid']:
                 example_rollout, loss = rollout(simulator,
                                                 positions,
                                                 particle_type,
+                                                universe_number,
                                                 material_property,
                                                 n_particles_per_example,
                                                 nsteps,
@@ -274,6 +283,7 @@ def predict(device: str):
                 prediction = prediction_rollout(simulator,
                                                 positions,
                                                 particle_type,
+                                                universe_number,
                                                 material_property,
                                                 n_particles_per_example,
                                                 nsteps,
@@ -408,11 +418,12 @@ def train(rank, flags, world_size, device):
             for example in dl:
                 position = example[0][0].to(device_id)
                 particle_type = example[0][1].to(device_id)
-                if n_features == 3:  # if dl includes material_property
-                    material_property = example[0][2].to(device_id)
+                universe_number = example[0][2].to(device_id)
+                if n_features == 4:  # if dl includes material_property
+                    material_property = example[0][3].to(device_id)
+                    n_particles_per_example = example[0][4].to(device_id)
+                elif n_features == 3:
                     n_particles_per_example = example[0][3].to(device_id)
-                elif n_features == 2:
-                    n_particles_per_example = example[0][2].to(device_id)
                 else:
                     raise NotImplementedError
                 labels = example[1].to(device_id)
@@ -434,8 +445,9 @@ def train(rank, flags, world_size, device):
                         nparticles_per_example=n_particles_per_example.to(
                             rank),
                         particle_types=particle_type.to(rank),
+                        universe_numbers=universe_number.to(rank),
                         material_property=material_property.to(
-                            rank) if n_features == 3 else None
+                            rank) if n_features == 4 else None
                     )
                 else:
                     pred_acc, target_acc = simulator.predict_accelerations(
@@ -445,8 +457,9 @@ def train(rank, flags, world_size, device):
                         nparticles_per_example=n_particles_per_example.to(
                             device),
                         particle_types=particle_type.to(device),
+                        universe_numbers=universe_number.to(device),
                         material_property=material_property.to(
-                            device) if n_features == 3 else None
+                            device) if n_features == 4 else None
                     )
 
                 # Calculate the loss 
@@ -544,11 +557,11 @@ def _get_simulator(
         nedge_in = metadata['nedge_in']
     else:
         # Given that there IS additional node feature (e.g., material_property) except for:
-        # (position (dim), velocity (dim*15), particle_type (16)),
+        # (position (dim), velocity (dim*2), particle_type (16), universe_number (16)),
         # nnode_in = 49 if metadata['dim'] == 3 else 33
-        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1) +16
+        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1) + 16
         nnode_in = nnode_in + \
-            metadata['num_prop'] if n_features == 3 else nnode_in
+            metadata['num_prop'] if n_features == 4 else nnode_in
         nedge_in = metadata['dim'] + 1
 
     # Init simulator.
@@ -564,6 +577,8 @@ def _get_simulator(
         normalization_stats=normalization_stats,
         nparticle_types=NUM_PARTICLE_TYPES,
         particle_type_embedding_size=16,
+        nuniverse_types=NUM_UNIVERSE_TYPES,
+        universe_number_embedding_size=16,
         device=device)
 
     return simulator

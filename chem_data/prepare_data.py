@@ -35,7 +35,7 @@ def normalize(X):
     return (X - x_min) / (x_max - x_min), x_min, x_max
 
 
-def data_splits(ts_chems, ptypes, mat_props, traincut=0.6, testcut=1.0):
+def data_splits(ts_chems, ptypes, unumbers, mat_props, traincut=0.6, testcut=1.0):
     splits = {}
     idxs = list(range(ts_chems.shape[1]))
     shuffle(idxs)
@@ -51,6 +51,10 @@ def data_splits(ts_chems, ptypes, mat_props, traincut=0.6, testcut=1.0):
     test_ptype = ptypes[idxs[train_cutoff:test_cutoff]]
     val_ptype = ptypes[idxs[test_cutoff:]]
     
+    train_unumber = unumbers[idxs[:train_cutoff]]
+    test_unumber = unumbers[idxs[train_cutoff:test_cutoff]]
+    val_unumber = unumbers[idxs[test_cutoff:]]
+    
     if len(mat_props.shape) > 1:
         train_MP = mat_props[idxs[:train_cutoff],:]
         test_MP = mat_props[idxs[train_cutoff:test_cutoff],:]
@@ -60,19 +64,20 @@ def data_splits(ts_chems, ptypes, mat_props, traincut=0.6, testcut=1.0):
         test_MP = mat_props[idxs[train_cutoff:test_cutoff]]
         val_MP = mat_props[idxs[test_cutoff:]]
         
-    splits["train_data"] = [train_X, train_ptype, train_MP]
-    splits["test_data"] = [test_X, test_ptype, test_MP]
+    splits["train_data"] = [train_X, train_ptype, train_unumber, train_MP]
+    splits["test_data"] = [test_X, test_ptype, test_unumber, test_MP]
     
     
     if testcut < 1.0:
-        splits["val_data"] = [val_X, val_ptype, val_MP]
+        splits["val_data"] = [val_X, val_ptype, val_unumber, val_MP]
         
     return splits, idxs, train_cutoff, test_cutoff  
 
 def make_metadata_file(path, training_data):
     train_X = training_data[0]
     train_ptype = training_data[1]
-    train_MP = training_data[2]
+    train_unumber = training_data[2]
+    train_MP = training_data[3]
     
     train_vel = train_X[1:,:,:] - train_X[:-1,:,:]
     train_acc = train_vel[1:,:,:] - train_vel[:-1,:,:]

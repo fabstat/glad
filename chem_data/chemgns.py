@@ -19,6 +19,8 @@ flags.DEFINE_list('material_properties', ['BC', 'OC', 'aero_number'], help='List
 flags.DEFINE_list('particle_chem', ['H2O', 'SO4'], help='List of particle phase chemicals.')
 flags.DEFINE_list('gases', ['H2SO4'], help='List of gas phase chemicals.')
 
+flags.DEFINE_integer('universe', 0, help='Example number to track differences in environmental conditions')
+
 FLAGS = flags.FLAGS
 
 
@@ -33,6 +35,11 @@ def main(_):
     myflags["material_properties"] = FLAGS.material_properties
     myflags["particle_chem"] = FLAGS.particle_chem
     myflags["gases"] = FLAGS.gases
+    myflags["universe"] = FLAGS.universe
+    
+    mol_mass = {'H2SO4': 0.09808,
+                'OH': 0.01701,
+                'SO2': 0.064}
         
     if FLAGS.action in ['prepare', 'predict']:
         feats_dict = load_raw_data(myflags["raw_data_path"])
@@ -48,18 +55,19 @@ def main(_):
         # these make up the dimensions of the gns
         time_changing_features = []
         ptype = [] # gns algorithm supports different type of particles
+        unumber = []
         for i, chem in enumerate(myflags["particle_chem"] + myflags["gases"]):
             if i < len(myflags["particle_chem"]):
                 ptype += [np.array([1]*feats_dict[chem].shape[1])]
                 time_changing_features += [feats_dict[chem]]
             else:
                 ptype += [np.array([2]*feats_dict[chem].shape[1])]
-                time_changing_features += [np.log(feats_dict[chem])]
-            # else:
-            #     time_changing_features += [np.log(feats_dict[chem])]
+                time_changing_features += [mol_mass[chem]*feats_dict[chem]*4.09e-11]
+            unumber += [np.array([myflags["universe"]]*feats_dict[chem].shape[1])]
         X = np.stack(time_changing_features, axis=-1)
         X = X[1:,:,:] # data for time step 0 is too different
         ptype = np.concatenate(ptype)
+        unumber = np.concatenate(unumber)
         
         ##### notes/changes: ##############################
         # put just gas in log scale
@@ -88,7 +96,7 @@ def main(_):
         
 
         if FLAGS.action == 'prepare':
-            split_dict, idxs, train_cutoff, test_cutoff = data_splits(norm_X, ptype, norm_MP, traincut=0.6, testcut=1.0)
+            split_dict, idxs, train_cutoff, test_cutoff = data_splits(norm_X, ptype, unumber, norm_MP, traincut=0.6, testcut=1.0)
             train_pre = np.array(split_dict["train_data"], dtype="object")
             test_pre = np.array(split_dict["test_data"], dtype="object")
             np.savez(os.path.join(myflags["preped_data_path"], "train.npz"), x=train_pre)
@@ -100,7 +108,7 @@ def main(_):
 
             make_metadata_file(myflags["preped_data_path"], split_dict["train_data"])
         else:
-            pred_pre = np.array([norm_X, ptype, norm_MP], dtype="object")
+            pred_pre = np.array([norm_X, ptype, unumber, norm_MP], dtype="object")
             np.savez(os.path.join(myflags["preped_data_path"], "predict.npz"), x=pred_pre)
     
     elif FLAGS.action == 'analyze':
@@ -134,8 +142,8 @@ def main(_):
                     outdata_dict['true_x'][x_names[i]] = true_x[:,:,i]
                     outdata_dict['pred_x'][x_names[i]] = pred_x[:,:,i]
                 else:
-                    outdata_dict['true_x'][x_names[i]] = np.exp(true_x[:,:,i])
-                    outdata_dict['pred_x'][x_names[i]] = np.exp(pred_x[:,:,i])
+                    outdata_dict['true_x'][x_names[i]] = 4.09e11*true_x[:,:,i]/mol_mass[x_names[i]] 
+                    outdata_dict['pred_x'][x_names[i]] = 4.09e11*pred_x[:,:,i]/mol_mass[x_names[i]] 
             
             for j in range(reshaped_mat_prop.shape[-1]):
                 outdata_dict['mat_prop'][mp_names[j]] = reshaped_mat_prop[:,:,j]
