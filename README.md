@@ -165,7 +165,7 @@ FUNCTIONS
 ```
 
 Example:
-(./images/dd_hist_rep15.png)
+![alt text](./images/dd_hist_rep15.png "Dry diameter histogram")
 
 N.B.: documentation is a work in progress. Take a look at the notebooks in this repo for examples.
 
