@@ -1,8 +1,6 @@
-# ChemGNS: Train, Test, Predict
+# Be GLAD! Graph-based Learning of Aerosol Dynamics - a Graph Neural Network Simulator Framework
 
-<img src="./images/chemgns_logo.png" alt="ChemGNS logo" width="1000"/>
-
-- Inspired by Pytorch GNS[^1]: https://www.geoelements.org/gns
+- Inspired by Pytorch GNS[1]: https://www.geoelements.org/gns
 - Multi-dimensional time-changing features 
 - Multi-dimensional node properties 
 - Alternative activation functions 
@@ -10,19 +8,27 @@
 - Data transformation pipeline 
 - Output analysis pipeline
 
-> [^1] Kumar, K. and Vantassel, J., 2022. GNS: A generalizable Graph Neural Network-based simulator for particulate and fluid modeling. arXiv preprint arXiv:2211.10228.
+> [1] Kumar, K. and Vantassel, J., 2022. GNS: A generalizable Graph Neural Network-based simulator for particulate and fluid modeling. arXiv preprint arXiv:2211.10228.
 
 ## Requirements
 
-glob, pathlib, os, re, absl, pickle, matplotlib, numpy, random, json, collections, sys, time, tqdm, typing, torch, pyg
+For MacOS and Windows use `conda` and the provided `environment.yml`:
+```bash
+conda env create -f environment.yml
+```
 
-For Pytorch-geometric (pyg) find out your CUDA from python IDE:
-   
+For Linux, install CUDA in your environment. For CUDA Toolkit 12.1:
+
+https://developer.nvidia.com/cuda-12-1-0-download-archive?target_os=Linux
+
+Choose the appropriate architecture, distribution, version and installer, then follow the instructions. Make sure that your environment is activated.
+
+Or if you are using Google Colab, find out your CUDA:   
 ```python
 [In] print(f"PyTorch has version {torch.__version__} with cuda {torch.version.cuda}")
 [Out] PyTorch has version 2.1.0+cu121 with cuda 12.1
 ```
-In terminal:
+Then in terminal:
 
 ```bash
 # Install torch geometric
@@ -165,7 +171,7 @@ FUNCTIONS
 ```
 
 Example:
-![alt text](./images/dd_hist_rep15.png "Dry diameter histogram")
+![alt text](./images/dd_hist_rep6.png "Dry diameter histogram")
 
 N.B.: documentation is a work in progress. Take a look at the notebooks in this repo for examples.
 
@@ -193,3 +199,5 @@ Simply run the following:
 sudo rmmod nvidia_uvm
 sudo modprobe nvidia_uvm        
 ```
+
+![alt text](./images/GLAD.png "GLAD cartoon")

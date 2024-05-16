@@ -51,39 +51,24 @@ def main(_):
             mat_prop += [feats_dict[prop][0]]
         MP = np.vstack(mat_prop)
         MP = MP.transpose()
+        
+        
+        ptype = [np.array([1]*feats_dict['H2O'].shape[1])]
+        unumber = [np.array([myflags["universe"]]*feats_dict['H2O'].shape[1])]
 
         # these make up the dimensions of the gns
         time_changing_features = []
-        ptype = [] # gns algorithm supports different type of particles
-        unumber = []
+        
         for i, chem in enumerate(myflags["particle_chem"] + myflags["gases"]):
             if i < len(myflags["particle_chem"]):
-                ptype += [np.array([1]*feats_dict[chem].shape[1])]
                 time_changing_features += [feats_dict[chem]]
             else:
-                ptype += [np.array([2]*feats_dict[chem].shape[1])]
-                time_changing_features += [mol_mass[chem]*feats_dict[chem]*4.09e-11]
-            unumber += [np.array([myflags["universe"]]*feats_dict[chem].shape[1])]
+                time_changing_features += [np.log10(feats_dict[chem])] #[mol_mass[chem]*feats_dict[chem]*4.09e-11]
+        
         X = np.stack(time_changing_features, axis=-1)
         X = X[1:,:,:] # data for time step 0 is too different
         ptype = np.concatenate(ptype)
         unumber = np.concatenate(unumber)
-        
-        ##### notes/changes: ##############################
-        # put just gas in log scale
-        # look into if all the particles stay positive
-        # convert them back to their true values
-        # process splitting - gas info is on top particles, not ideal
-        # better to have a gas gns
-        # the mass of h2so4 is balanced between the particles
-        # d m s04 / dt non normalized info on what happened to the gas
-        # total change of of the mass of so4 per volume of air occupied per time
-        # feed the above information into the gas h2so4
-        # however much the particles are going that is how the h2so4 is being depleated
-        # side by side comparisons of time series
-        # dig through the mosaic paper - they solve analytically
-        # look up first order loss/reactions
-        ####################################################
 
         # normalize values to be in the 0-1 interval
         norm_X, min_x, max_x = normalize(X)
@@ -96,7 +81,7 @@ def main(_):
         
 
         if FLAGS.action == 'prepare':
-            split_dict, idxs, train_cutoff, test_cutoff = data_splits(norm_X, ptype, unumber, norm_MP, traincut=0.6, testcut=1.0)
+            split_dict, idxs, train_cutoff, test_cutoff = data_splits(norm_X, ptype, unumber, norm_MP, traincut=0.6, testcut=0.9)
             train_pre = np.array(split_dict["train_data"], dtype="object")
             test_pre = np.array(split_dict["test_data"], dtype="object")
             np.savez(os.path.join(myflags["preped_data_path"], "train.npz"), x=train_pre)
@@ -142,8 +127,8 @@ def main(_):
                     outdata_dict['true_x'][x_names[i]] = true_x[:,:,i]
                     outdata_dict['pred_x'][x_names[i]] = pred_x[:,:,i]
                 else:
-                    outdata_dict['true_x'][x_names[i]] = 4.09e11*true_x[:,:,i]/mol_mass[x_names[i]] 
-                    outdata_dict['pred_x'][x_names[i]] = 4.09e11*pred_x[:,:,i]/mol_mass[x_names[i]] 
+                    outdata_dict['true_x'][x_names[i]] = 10**true_x[:,:,i] #4.09e11*true_x[:,:,i]/mol_mass[x_names[i]] 
+                    outdata_dict['pred_x'][x_names[i]] = 10**pred_x[:,:,i] #4.09e11*pred_x[:,:,i]/mol_mass[x_names[i]] 
             
             for j in range(reshaped_mat_prop.shape[-1]):
                 outdata_dict['mat_prop'][mp_names[j]] = reshaped_mat_prop[:,:,j]

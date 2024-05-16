@@ -168,7 +168,6 @@ def collate_fn(data):
                 torch.tensor(np.concatenate(universe_number_list)).contiguous(),
                 torch.tensor(np.vstack(material_property_list)).to(
                     torch.float32).contiguous(),
-                # torch.tensor(np.concatenate(material_property_list)).to(torch.float32).contiguous(),
                 torch.tensor(n_particles_per_example_list).contiguous(),
             ),
             torch.tensor(np.vstack(label_list)).to(torch.float32).contiguous()

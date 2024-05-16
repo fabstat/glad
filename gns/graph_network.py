@@ -50,7 +50,7 @@ def build_alt_mlp(
         output_size: int = None,
         output_activation: nn.Module = nn.Identity,
         activation: nn.Module = nn.ReLU) -> nn.Module:
-    """Build a MultiLayer Perceptron.
+    """Build a alternative MultiLayer Perceptron.
 
     Args:
       input_size: Size of input layer.
@@ -112,8 +112,8 @@ class Encoder(nn.Module):
           nedge_in_features: Number of edge input features.
           nedge_out_features: Number of edge output features (latent dimension of
             size 128).
-          nmlp_layer: Number of hidden layers in the MLP (typically of size 3).
-          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 128).
+          nmlp_layer: Number of hidden layers in the MLP (typically of size 2).
+          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 256).
 
         """
         super(Encoder, self).__init__()
@@ -163,8 +163,8 @@ class InteractionNetwork(MessagePassing):
           nnode_out: Number of node outputs (latent dimension of size 128).
           nedge_in: Number of edge inputs (latent dimension of size 128).
           nedge_out: Number of edge output features (latent dimension of size 128).
-          nmlp_layer: Number of hidden layers in the MLP (typically of size 3).
-          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 128).
+          nmlp_layer: Number of hidden layers in the MLP (typically of size 2).
+          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 256).
 
         """
         # Aggregate features from neighbors
@@ -292,8 +292,8 @@ class Processor(MessagePassing):
           nedge_in: Number of edge inputs (latent dimension of size 128).
           nedge_out: Number of edge output features (latent dimension of size 128).
           nmessage_passing_steps: Number of message passing steps.
-          nmlp_layer: Number of hidden layers in the MLP (typically of size 3).
-          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 128).
+          nmlp_layer: Number of hidden layers in the MLP (typically of size 2).
+          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 256).
 
         """
         super(Processor, self).__init__(aggr='max')
@@ -341,7 +341,7 @@ class Decoder(nn.Module):
             nnode_out: int,
             nmlp_layers: int,
             mlp_hidden_dim: int):
-        """The Decoder coder's learned function, :math: `\detla v`, is an MLP. 
+        """The Decoder coder's learned function, :math: `\delta v`, is an MLP. 
         After the Decoder, the future position and velocity are updated using an 
         Euler integrator, so the :math: `yi` corresponds to accelerations, 
         :math: `\"{p}_i`, with dimension depending on the chemical domain.
@@ -349,8 +349,8 @@ class Decoder(nn.Module):
         Args:
           nnode_in: Number of node inputs (latent dimension of size 128).
           nnode_out: Number of node outputs (particle dimension).
-          nmlp_layer: Number of hidden layers in the MLP (typically of size 3).
-          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 128).
+          nmlp_layer: Number of hidden layers in the MLP (typically of size 2).
+          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 256).
         """
         super(Decoder, self).__init__()
         self.node_fn = build_alt_mlp(
@@ -386,8 +386,8 @@ class EncodeProcessDecode(nn.Module):
           nnode_out_features:  Number of node outputs (particle dimension).
           nedge_in_features: Number of edge input features.
           latent_dim: Size of latent dimension (128).
-          nmlp_layer: Number of hidden layers in the MLP (typically of size 3).
-          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 128).
+          nmlp_layer: Number of hidden layers in the MLP (typically of size 2).
+          mlp_hidden_dim: Size of the hidden layer (latent dimension of size 256).
 
         """
         super(EncodeProcessDecode, self).__init__()

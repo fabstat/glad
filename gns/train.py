@@ -58,8 +58,8 @@ FLAGS = flags.FLAGS
 Stats = collections.namedtuple('Stats', ['mean', 'std'])
 
 INPUT_SEQUENCE_LENGTH = 2  # So we can calculate the last velocity.
-NUM_PARTICLE_TYPES = 2
-NUM_UNIVERSE_TYPES = 1
+NUM_PARTICLE_TYPES = 1 # adjust for more particle types
+NUM_UNIVERSE_TYPES = 9 # adjust for more universe types
 
 def rollout(
         simulator: learned_simulator.LearnedSimulator,
@@ -75,7 +75,7 @@ def rollout(
 
     Args:
       simulator: Learned simulator.
-      position: Positions of particles in chemical space (timesteps, nparticles, ndims)
+      position: Positions of particles in chemical composition space (timesteps, nparticles, ndims)
       particle_types: Particles types with shape (nparticles)
       universe_numbers: Category variable representing data under same conditions (nparticles)
       material_property: Particle characteristics that do not change over time (nparticles)
@@ -559,7 +559,7 @@ def _get_simulator(
         # Given that there IS additional node feature (e.g., material_property) except for:
         # (position (dim), velocity (dim*2), particle_type (16), universe_number (16)),
         # nnode_in = 49 if metadata['dim'] == 3 else 33
-        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1) + 16
+        nnode_in = metadata['dim'] * (INPUT_SEQUENCE_LENGTH + 1) + 16 # since we have more than 1 universe
         nnode_in = nnode_in + \
             metadata['num_prop'] if n_features == 4 else nnode_in
         nedge_in = metadata['dim'] + 1

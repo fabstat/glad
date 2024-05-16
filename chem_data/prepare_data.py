@@ -77,7 +77,7 @@ def make_metadata_file(path, training_data):
     train_X = training_data[0]
     train_ptype = training_data[1]
     train_unumber = training_data[2]
-    train_MP = training_data[3]
+    train_MP = training_data[3] if len(training_data) > 3 else None
     
     train_vel = train_X[1:,:,:] - train_X[:-1,:,:]
     train_acc = train_vel[1:,:,:] - train_vel[:-1,:,:]

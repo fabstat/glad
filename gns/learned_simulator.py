@@ -29,12 +29,12 @@ class LearnedSimulator(nn.Module):
         """Initializes the model.
 
         Args:
-          particle_dimensions: Dimensionality of the problem.
+          particle_dimensions: Dimensionality of the problem, number of particle-phase and gas-phase chemicals in the system.
           nnode_in: Number of node inputs.
           nedge_in: Number of edge inputs.
           latent_dim: Size of latent dimension (128)
           nmessage_passing_steps: Number of message passing steps.
-          nmlp_layers: Number of hidden layers in the MLP (typically of size 3).
+          nmlp_layers: Number of hidden layers in the MLP.
           boundaries: Array of 2-tuples, containing the lower and upper boundaries
             of the cuboid containing the particles along each dimensions, matching
             the dimensionality of the problem.
@@ -54,10 +54,10 @@ class LearnedSimulator(nn.Module):
         self._nparticle_types = nparticle_types
         self._nuniverse_types = nuniverse_types
 
-        # Particle type embedding has shape (2, 16)
+        # Particle type embedding has shape (num_ptypes, 16)
         self._particle_type_embedding = nn.Embedding(
             nparticle_types, particle_type_embedding_size)
-        # Universe number embedding has shape (10, 16)
+        # Universe number embedding has shape (num_univs, 16)
         self._universe_number_embedding = nn.Embedding(
             nuniverse_types, universe_number_embedding_size)
 
@@ -119,12 +119,12 @@ class LearnedSimulator(nn.Module):
 
         Args:
           position_sequence: A sequence of particle positions. Shape is
-            (nparticles, 15, dim). Includes current + last 14 positions
+            (nparticles, 2, dim). Includes current + last 14 positions
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
           particle_types: Particle types with shape (nparticles)
           universe_numbers: Category variable representing data under same conditions (nparticles)
-          material_property: Friction angle normalized by tan() with shape (nparticles)
+          material_property: multi-dimensional vector of particle properties, e.g. BC, OC, N (nparticles)
         """
         nparticles = position_sequence.shape[0]
         most_recent_position = position_sequence[:, -1]  # (n_nodes, 2)
@@ -250,9 +250,9 @@ class LearnedSimulator(nn.Module):
           current_positions: Current particle positions (nparticles, dim).
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
-          particle_types: Particle types with shape (nparticles)
-          universe_numbers: Category variable representing data under same conditions (nparticles)
-          material_property: Friction angle normalized by tan() with shape (nparticles)
+          particle_types: Particle types with shape (nparticles).
+          universe_numbers: Category variable representing data under same conditions (nparticles).
+          material_property: Particle characteristics that do not change over time (nparticles).
 
         Returns:
           next_positions (torch.tensor): Next position of particles.
@@ -286,7 +286,7 @@ class LearnedSimulator(nn.Module):
           position_sequence_noise: Tensor of the same shape as `position_sequence`
             with the noise to apply to each particle.
           position_sequence: A sequence of particle positions. Shape is
-            (nparticles, 15, dim). Includes current + last 14 positions.
+            (nparticles, 2, dim). Includes current + last position.
           nparticles_per_example: Number of particles per example. Default is 3
             examples per batch.
           particle_types: Particle types with shape (nparticles).
@@ -339,7 +339,7 @@ class LearnedSimulator(nn.Module):
           next_position: Tensor of shape (nparticles_in_batch, dim) with the
             positions the model should output given the inputs.
           position_sequence: A sequence of particle positions. Shape is
-            (nparticles, 15, dim). Includes current + last 14 positions.
+            (nparticles, 2, dim). Includes current + last position.
 
         Returns:
           normalized_acceleration (torch.tensor): Normalized acceleration.
@@ -382,7 +382,7 @@ def time_diff(
     """Finite difference between two input position sequence
 
     Args:
-      position_sequence: Input position sequence & shape(nparticles, 15 steps, dim)
+      position_sequence: Input position sequence & shape(nparticles, 2 steps, dim)
 
     Returns:
       torch.tensor: Velocity sequence
