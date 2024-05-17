@@ -24,6 +24,7 @@ train_steps = 300
 available_scenarios = ['0001_simple_cond', '0002_simple_cond', '0003_simple_cond', '0005_simple_cond', 
              '0006_simple_cond', '0007_simple_cond','0008_simple_cond','0009_simple_cond', '0012_simple_cond']
 scenarios = [1]
+more_than_one_scenario = False
 example_to_test = 1 # set to be a number from the scenarios list
 total_reps = 20
 
@@ -62,7 +63,9 @@ for scenario in scenarios:
                       f"--model_file='model-{old_ts}.pt' --train_state_file='train_state-{old_ts}.pt' -ntraining_steps={total_steps}")
             
   
-        if rollout_number == len(scenarios) - 1:
+        
+        # Comment this if statement out when running only 1 scenario
+        if rollout_number == len(scenarios) - 1 and more_than_one_scenario:
             rollex = example_to_test
             example_folder = npz_path + "example" + str(rollex) + "/"
             rollout_folder = rollouts_path + "rollout" + str(rollex)
@@ -75,7 +78,7 @@ for scenario in scenarios:
                       f"--particle_chem={part_chem_str} --proc_data_path={dict_folder} --share_path={rollout_dicts}")
         else:
             os.system(f"python -m gns.train --mode='rollout' --data_path={example_folder} --model_path={model_path} --output_path={rollout_folder} " +
-                  f"--model_file='model-{total_steps}.pt' --train_state_file='train_state-{total_steps}.pt'")
+                      f"--model_file='model-{total_steps}.pt' --train_state_file='train_state-{total_steps}.pt'")
             
         
 
