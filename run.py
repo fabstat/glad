@@ -64,7 +64,7 @@ for scenario in scenarios:
             
   
         
-        # Comment this if statement out when running only 1 scenario
+        # 
         if rollout_number == len(scenarios) - 1 and more_than_one_scenario:
             rollex = example_to_test
             example_folder = npz_path + "example" + str(rollex) + "/"
@@ -79,6 +79,9 @@ for scenario in scenarios:
         else:
             os.system(f"python -m gns.train --mode='rollout' --data_path={example_folder} --model_path={model_path} --output_path={rollout_folder} " +
                       f"--model_file='model-{total_steps}.pt' --train_state_file='train_state-{total_steps}.pt'")
+            os.system(f"python -m chem_data.chemgns --action='analyze' --rollout_data_path={rollout_folder} " +  
+                      f"--material_properties={mat_prop_str} --gases={gases_str} " + 
+                      f"--particle_chem={part_chem_str} --proc_data_path={dict_folder} --share_path={rollout_dicts}")
             
         
 
